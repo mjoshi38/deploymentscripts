@@ -1,0 +1,97 @@
+#!/bin/bash
+
+##This script is for installing packages on publish instances
+
+export Username
+export Password
+export Port
+export IPAddress
+
+nonsslsetup()
+	{
+	for package in `cat /home/mojoshi/author-publish/packages.txt`
+	do
+	PACKAGE_NAME_ZIP="${package##*/}"
+	PACKAGE_NAME=`basename ${PACKAGE_NAME_ZIP} .zip`
+	curl -v -s -u $Username:"${Password}" -F file=@"${package}" -F name="${PACKAGE_NAME}" -F force=true -F install=true -F recursive=true http://$IPAddress:$Port/crx/packmgr/service.jsp
+	sleep 30
+	done
+	}
+
+sslsetup()
+	{
+	for package in `cat /home/mojoshi/author-publish/packages.txt`
+        do
+        PACKAGE_NAME_ZIP="${package##*/}"
+	PACKAGE_NAME=`basename ${PACKAGE_NAME_ZIP} .zip`
+	curl -v -s -k --insecure -u $Username:"${Password}" -F file=@"${package}" -F name="${PACKAGE_NAME}" -F force=true -F install=true -F recursive=true https://$IPAddress:$Port/crx/packmgr/service.jsp
+	sleep 30
+	done
+	}
+
+install()
+	{
+	if [ "$Port" == 4502 -o "$Port" == 4503 ]
+	then
+      	nonsslsetup
+	elif [ "$Port" == 5433 -o "$Port" == 443 ]
+	then
+	sslsetup
+	else
+	echo "Port number is not correct, try again with correct port number"
+	exit 1
+	fi
+	}
+
+get_input()
+	{
+	read -p "Enter Username ::" Username
+	read -p "Enter Password ::" Password
+	read -p "Enter Port Number (Default-5433) ::" port
+	if ! [ "$Username" ]
+	then
+	if ! [ "$Password" ]
+	then
+	echo "Username and Password are mandatory. Try again"
+	exit 1
+	else
+	echo "Username is mandatory. Try again"
+	exit 1
+	fi
+	elif ! [ "$Password" ]
+	then
+	echo "Password is mandatory. Try again"
+	exit 1
+	elif ! [ "$port" ] 
+	then
+	Port=5433
+	elif ! [[ "$port" =~ ^[0-9]+$ ]]
+	then
+	echo "Port number should be integer. Try again"
+	exit 1
+	else
+	Port="$port"
+	fi
+	}
+
+## Taking server IP address.
+read -p "Enter Server IP ::" IP
+
+if ! [[ "$IP" ]]
+then
+echo "IP address is mandatory. Try again"
+exit 1
+else
+get_input
+for IPAddress in $IP
+do
+echo "Installing packages on $IPAddress"
+install
+echo -e "\nPackage deployment completed on $IPAddress"
+echo -e "\nWaiting for 5 second before deploying to next server\n"
+sleep 5
+done
+echo -e "Package deployment completed on below IPs\n"
+echo -e "$IP\n"
+exit 0
+fi
